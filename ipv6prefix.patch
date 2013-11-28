@@ -1,0 +1,46 @@
+diff --git src/main/conffile.c src/main/conffile.c
+index 13ecf15..98219a5 100644
+--- src/main/conffile.c
++++ src/main/conffile.c
+@@ -1094,6 +1094,41 @@ int cf_item_parse(CONF_SECTION *cs, char const *name, int type, void *data, char
+ 		       sizeof(ipaddr.ipaddr.ip6addr));
+ 		break;
+ 
++	case PW_TYPE_IPV6PREFIX:
++		if (strchr(value, '/') == 0) {
++			ERROR("%s is not a valid IPv6 prefix", value);
++			return -1;
++		}
++
++		char *endptr;
++		const char *prefixstring = strchr(value, '/') +1;
++		long prefix = strtol(prefixstring,&endptr,10);
++		if (errno == ERANGE
++				|| prefixstring == endptr
++				|| prefixstring + strlen(prefixstring) != endptr) {
++			ERROR("%s is not a valid IPv6 prefix", value);
++			return -1;
++		}
++		char *tmp;
++		tmp = strdup(value);
++		if (ip_hton(strtok(tmp,"/"), AF_INET6, &ipaddr) < 0) {
++			ERROR("%s is not a valid IPv6-Prefix", value);
++			return -1;
++		}
++
++		if (prefix > 128 || prefix < 0) {
++			ERROR("%s has an invalid prefix length", value);
++			return -1;
++		}
++
++		/* TODO: Log shows IP-Address instead of IPv6-Prefix */
++		cf_log_info(cs, "%.*s\t%s = %s IPv6-Prefix [%s]",
++				cs->depth, parse_spaces, name, value,
++				ip_ntoh(&ipaddr, ipbuf, sizeof(ipbuf)));
++		memcpy((char*)data+2, &ipaddr.ipaddr.ip6addr,
++				sizeof(ipaddr.ipaddr.ip6addr));
++		*(uint8_t*)((char*)data+1) = prefix;
++		break;
+ 	default:
+ 		/*
+ 		 *	If we get here, it's a sanity check error.
